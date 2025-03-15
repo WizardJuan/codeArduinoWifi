@@ -1,0 +1,65 @@
+#include <ESP8266WiFi.h>
+#include <ESP8266HTTPClient.h>
+#include <ArduinoJson.h>
+
+const char* ssid = "WIFI_CASA";//Nombre de la red wifi a conectar
+const char* password = "1005328739@Ja";Contraseña de la red wifi
+const char* serverUrl = "http://192.168.1.14/api.php";//Modifica solo la direccion ip de 
+//acuerdo a la direccion IPv4 copiada del PC 
+
+const char* username = "***";
+const char* userpass = "***";
+
+unsigned long lastSendTime = 0;
+const int sendInterval = 2000;  // Enviar cada 2 segundos
+
+void setup() {
+    Serial.begin(115200);
+    WiFi.begin(ssid, password);
+    
+    Serial.print("Conectando a WiFi");
+    while (WiFi.status() != WL_CONNECTED) {
+        delay(500);
+        Serial.print(".");
+    }
+    Serial.println("\nConectado a WiFi");
+}
+
+void loop() {
+    if (millis() - lastSendTime >= sendInterval) {
+        if (WiFi.status() == WL_CONNECTED) {
+            float voltage = analogRead(A0) * (3.3 / 1023.0) * 4.54; // Ajusta el factor de calibración
+
+            char voltageStr[6];  // Espacio suficiente para 4.54 + terminador
+            dtostrf(voltage, 4, 2, voltageStr); // Formato con 2 decimales
+
+            WiFiClient client;
+            HTTPClient http;
+            http.begin(client, serverUrl);
+            http.addHeader("Content-Type", "application/json");
+
+            // Construcción segura del JSON
+            StaticJsonDocument<200> jsonDoc;
+            jsonDoc["username"] = username;
+            jsonDoc["password"] = userpass;
+            jsonDoc["voltage"] = voltageStr; // Envía el valor como string formateado
+
+            String postData;
+            serializeJson(jsonDoc, postData);
+
+            int httpResponseCode = http.POST(postData);
+            String response = http.getString();
+
+            Serial.print("Respuesta del servidor: ");
+            Serial.println(response);
+            Serial.print("valor actual: ");
+            Serial.println(voltage);
+
+            http.end();
+        } else {
+            Serial.println("WiFi desconectado...");
+        }
+
+        lastSendTime = millis();
+    }
+}
