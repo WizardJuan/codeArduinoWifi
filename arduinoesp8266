@@ -1,65 +1,154 @@
+//importar librerias
 #include <ESP8266WiFi.h>
 #include <ESP8266HTTPClient.h>
 #include <ArduinoJson.h>
 
-const char* ssid = "WIFI_CASA";//Nombre de la red wifi a conectar
-const char* password = "1005328739@Ja";Contraseña de la red wifi
-const char* serverUrl = "http://192.168.1.14/api.php";//Modifica solo la direccion ip de 
-//acuerdo a la direccion IPv4 copiada del PC 
+//credenciales para conectar la placa a la red WI-FI
+const char* ssid = "Familia Gamboa";                    // Nombre de la red WiFi a conectar
+const char* password = "3115053476juan"; // Contraseña de la red WiFi
+//esta es la direccion URL de nuestro server donde nuestra placa hara las
+//solicitudes POST
+const char* serverUrl = "http://192.168.1.4/wifi_turbina/api.php"; // Cambia la IP según la configuración
 
-const char* username = "***";
-const char* userpass = "***";
+//credenciales para acceder a nuestra api y enviar datos
+//seguridad para evitar que entren a nuestra api
+const char* username = "admin";
+const char* userpass = "1234";
+
+// Definición de pines para LEDs
+#define LED_WIFI   D5  // LED para error de conexión WiFi
+#define LED_SERVER D6  // LED para error de respuesta del servidor
+
 
 unsigned long lastSendTime = 0;
 const int sendInterval = 2000;  // Enviar cada 2 segundos
 
+// Variables para el control de parpadeo y secuencia
+unsigned long lastLEDToggleTime = 0;
+unsigned long lastSequenceTime = 0;
+bool ledBlinkState = false;
+int sequenceIndex = 0;          // 0: LED_WIFI, 1: LED_SERVER
+
+// Estados: 0 = funcionando, 1 = error WiFi, 2 = error Servidor
+int errorState = 0;
+
 void setup() {
-    Serial.begin(115200);
-    WiFi.begin(ssid, password);
-    
-    Serial.print("Conectando a WiFi");
-    while (WiFi.status() != WL_CONNECTED) {
-        delay(500);
-        Serial.print(".");
-    }
+  Serial.begin(115200);
+
+  // Configuración de pines de LED como salida
+  pinMode(LED_WIFI, OUTPUT);
+  pinMode(LED_SERVER, OUTPUT);
+
+  // Apagar todos inicialmente
+  digitalWrite(LED_WIFI, LOW);
+  digitalWrite(LED_SERVER, LOW);
+
+
+  WiFi.begin(ssid, password);
+  Serial.print("Conectando a WiFi");
+  // Intentar conectar durante 10 segundos
+  unsigned long startAttemptTime = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < 10000) {
+    delay(500);
+    Serial.print(".");
+  }
+  
+  if (WiFi.status() == WL_CONNECTED) {
     Serial.println("\nConectado a WiFi");
+  } else {
+    Serial.println("\nNo se pudo conectar a WiFi");
+  }
 }
 
 void loop() {
-    if (millis() - lastSendTime >= sendInterval) {
-        if (WiFi.status() == WL_CONNECTED) {
-            float voltage = analogRead(A0) * (3.3 / 1023.0) * 4.54; // Ajusta el factor de calibración
-
-            char voltageStr[6];  // Espacio suficiente para 4.54 + terminador
-            dtostrf(voltage, 4, 2, voltageStr); // Formato con 2 decimales
-
-            WiFiClient client;
-            HTTPClient http;
-            http.begin(client, serverUrl);
-            http.addHeader("Content-Type", "application/json");
-
-            // Construcción segura del JSON
-            StaticJsonDocument<200> jsonDoc;
-            jsonDoc["username"] = username;
-            jsonDoc["password"] = userpass;
-            jsonDoc["voltage"] = voltageStr; // Envía el valor como string formateado
-
-            String postData;
-            serializeJson(jsonDoc, postData);
-
-            int httpResponseCode = http.POST(postData);
-            String response = http.getString();
-
-            Serial.print("Respuesta del servidor: ");
-            Serial.println(response);
-            Serial.print("valor actual: ");
-            Serial.println(voltage);
-
-            http.end();
-        } else {
-            Serial.println("WiFi desconectado...");
-        }
-
-        lastSendTime = millis();
+  // Actualizar estado: si no está conectado a WiFi, se marca error de conexión (estado 1)
+  if (WiFi.status() != WL_CONNECTED) {
+    if(errorState != 1) {
+      errorState = 1;  // Error de WiFi
+      lastLEDToggleTime = millis(); // Reiniciamos el temporizador para el parpadeo
     }
+  } else {
+    if (millis() - lastSendTime >= sendInterval) {
+      float voltage = analogRead(A0) * (3.3 / 1023.0) * 4.54;  // Ajusta el factor de calibración
+      char voltageStr[6];  
+      dtostrf(voltage, 4, 2, voltageStr); // Formato con 2 decimales
+
+      WiFiClient client;
+      HTTPClient http;
+      http.begin(client, serverUrl);
+      http.addHeader("Content-Type", "application/json");
+
+      // Construcción segura del JSON
+      StaticJsonDocument<200> jsonDoc;
+      jsonDoc["username"] = username;
+      jsonDoc["password"] = userpass;
+      jsonDoc["voltage"] = voltageStr;
+
+      String postData;
+      serializeJson(jsonDoc, postData);
+
+      int httpResponseCode = http.POST(postData);
+      String response = http.getString();
+
+      Serial.print("Respuesta del servidor: ");
+      Serial.println(response);
+      Serial.print("Valor actual: ");
+      Serial.println(voltage);
+
+      // Actualizar el estado solo si hay un cambio, para evitar reiniciar el parpadeo
+      if (httpResponseCode > 0) {
+        if(errorState != 0) {
+          errorState = 0;  // Funcionamiento correcto
+          lastSequenceTime = millis(); // Reiniciamos el temporizador de la secuencia
+        }
+      } else {
+        if(errorState != 2) {
+          errorState = 2;  // Error en la respuesta del servidor
+          // No reiniciamos lastLEDToggleTime para mantener la continuidad del parpadeo
+        }
+      }
+      
+      http.end();
+      lastSendTime = millis();
+    }
+  }
+
+  // Control de LEDs según el estado
+  if (errorState == 1) {
+    // Error de WiFi: Parpadeo en LED_WIFI (D5) cada 500 ms
+    if (millis() - lastLEDToggleTime >= 500) {
+      ledBlinkState = !ledBlinkState;
+      digitalWrite(LED_WIFI, ledBlinkState ? HIGH : LOW);
+      // Asegurarse de que los otros LEDs estén apagados
+      digitalWrite(LED_SERVER, LOW);
+      lastLEDToggleTime = millis();
+    }
+  }
+  else if (errorState == 2) {
+    // Error del servidor: Parpadeo en LED_SERVER (D6) cada 500 ms
+    if (millis() - lastLEDToggleTime >= 500) {
+      ledBlinkState = !ledBlinkState;
+      digitalWrite(LED_SERVER, ledBlinkState ? HIGH : LOW);
+      digitalWrite(LED_WIFI, LOW);
+      lastLEDToggleTime = millis();
+    }
+  }
+  else if (errorState == 0) {
+    // Funcionamiento correcto: Secuencia de LEDs de D5 a D7 cada 500 ms
+    if (millis() - lastSequenceTime >= 500) {
+      // Apagar todos
+      digitalWrite(LED_WIFI, LOW);
+      digitalWrite(LED_SERVER, LOW);
+
+
+      // Encender el LED según el índice de la secuencia
+      if (sequenceIndex == 0) {
+        digitalWrite(LED_WIFI, HIGH);
+      } else if (sequenceIndex == 1) {
+        digitalWrite(LED_SERVER, HIGH);
+      } 
+      sequenceIndex = (sequenceIndex + 1) % 3;
+      lastSequenceTime = millis();
+    }
+  }
 }
