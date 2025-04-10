@@ -4,7 +4,7 @@ require 'db.php';
 header('Content-Type: application/json');
 
 try {
-    // Eliminar datos menores a 1V cada 10 minutos
+    // Eliminar datos menores a 1V cada 20 segundos
 $pdo->query("DELETE FROM voltajes WHERE valor <= 1 AND fecha < NOW() - INTERVAL 20 SECOND");
 
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -36,9 +36,14 @@ $pdo->query("DELETE FROM voltajes WHERE valor <= 1 AND fecha < NOW() - INTERVAL 
     $stmt = $pdo->prepare("INSERT INTO voltajes (valor, fecha) VALUES (?, NOW())");
     $stmt->execute([$voltage]);
 
-    // Actualizar última conexión del sensor
-    $stmt = $pdo->prepare("UPDATE sensor_estado SET ultima_actualizacion = NOW() WHERE id = 1");
-    $stmt->execute();
+    // Antes de actualizar, verificar si existe el registro
+$stmt = $pdo->query("SELECT COUNT(*) FROM sensor_estado WHERE id = 1");
+if ($stmt->fetchColumn() == 0) {
+    $pdo->query("INSERT INTO sensor_estado (id, ultima_actualizacion) VALUES (1, NOW())");
+} else {
+    $pdo->query("UPDATE sensor_estado SET ultima_actualizacion = NOW() WHERE id = 1");
+}
+
 
     echo json_encode(["status" => "success", "message" => "Dato almacenado"]);
 } catch (Exception $e) {
