@@ -17,7 +17,7 @@ $mejores_valores = $stmt->fetchAll(PDO::FETCH_ASSOC);
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Estado del Sensor</title>
+    <title>Monitorización de Turbina Eólica IoT</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="styles.css">
@@ -66,13 +66,13 @@ $mejores_valores = $stmt->fetchAll(PDO::FETCH_ASSOC);
 </head>
 <body class="bg-gradient-to-r from-blue-400 to-indigo-500 py-5 text-white">
     <div class="container text-center">
-        <h1 class="text-4xl font-extrabold mb-4 shadow-lg p-3 rounded-lg bg-white text-blue-600">Estado del Sensor</h1>
-        <p class="text-lg bg-white p-3 rounded-lg text-gray-800 shadow-md inline-block">Valor actual del sensor: 
+        <h1 class="text-4xl font-extrabold mb-4 shadow-lg p-3 rounded-lg bg-white text-blue-600">Monitorización de Turbina Eólica IoT</h1>
+        <p class="text-lg bg-white p-3 rounded-lg text-gray-800 shadow-md inline-block">Estado actual del sensor: 
             <strong id="valorActual" class="text-xl text-blue-500">Cargando...</strong>
         </p>
         
         <div class="mt-5 bg-white p-5 rounded-lg shadow-lg max-w-lg mx-auto">
-            <h2 class="text-2xl font-semibold text-gray-700 mb-3">Top 5 Valores Históricos</h2>
+            <h2 class="text-2xl font-semibold text-gray-700 mb-3">Eventos destacados</h2>
             <ul id="mejoresValores" class="list-group mt-3 shadow-lg rounded-lg overflow-hidden">
                 <?php foreach ($mejores_valores as $valor) { echo "<li class='list-group-item border-l-4 border-green-500 bg-gray-50 p-2 rounded-lg shadow-md'>${valor['valor']} V - ${valor['fecha']}</li>"; } ?>
             </ul>
@@ -91,3 +91,5 @@ $mejores_valores = $stmt->fetchAll(PDO::FETCH_ASSOC);
     <script>actualizarValor();</script>
 </body>
 </html>
+
+
